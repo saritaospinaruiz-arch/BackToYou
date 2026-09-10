@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+
+# Base de datos local: cada quien tiene la suya.
+# El patron cubre el nombre actual (local.sqlite3) y el antiguo (db.sqlite3).
+*.sqlite3
+
+# Archivos que suben los usuarios
+media_local/
+media/

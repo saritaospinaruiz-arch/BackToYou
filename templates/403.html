@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Action not available | BackToYou{% endblock %}
+
+{% block content %}
+    <section class="form-card">
+        <h1 class="page-title">You don't have permission to do this</h1>
+        <p class="lead">
+            Either this report does not belong to you, its current status
+            does not allow this action, or this section is only available to
+            administrators.
+        </p>
+
+        <div class="actions">
+            <a class="button" href="{% url 'reports:my_reports' %}">
+                Go to my reports
+            </a>
+            <a class="button ghost" href="{% url 'reports:report_list' %}">
+                Browse reports
+            </a>
+        </div>
+    </section>
+{% endblock %}

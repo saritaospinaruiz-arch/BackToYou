@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -19,13 +20,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-mo1qmk=+sh)6j1%rewcv$_qdve5yb_@trnl+%u02ulxs7y14&m'
+# Configuracion sensible: se lee del entorno para no dejarla en el codigo.
+# En desarrollo se usan los valores por defecto y no hay que configurar nada.
+# En despliegue hay que definir DJANGO_SECRET_KEY, DJANGO_DEBUG=False y
+# DJANGO_ALLOWED_HOSTS con los dominios reales.
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-solo-para-desarrollo-local-no-usar-en-despliegue",
+)
 
-ALLOWED_HOSTS = []
+DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() != "false"
+
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",")
+    if host.strip()
+]
 
 
 # Application definition
@@ -76,10 +87,43 @@ WSGI_APPLICATION = 'backtoyou.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
+# La base de datos y los archivos subidos son LOCALES de cada persona.
+# Usan nombres que nunca estuvieron rastreados en git ('local.sqlite3' y
+# 'media_local/'), asi que ninguna operacion de git -merge, pull, checkout-
+# puede borrarlos: git solo toca archivos que conoce.
+
+DB_NAME = os.environ.get("DJANGO_DB_NAME", "local.sqlite3")
+MEDIA_DIR = os.environ.get("DJANGO_MEDIA_DIR", "media_local")
+
+
+def _vacio(ruta):
+    # Un archivo de 0 bytes o un directorio sin contenido no son datos.
+    if not ruta.exists():
+        return True
+    if ruta.is_dir():
+        return not any(ruta.iterdir())
+    return ruta.stat().st_size == 0
+
+
+def _renombrar_si_quedo_el_nombre_viejo(viejo, nuevo):
+    # Mueve los datos al nombre nuevo la primera vez, sin perderlos.
+    # Solo actua si el origen tiene contenido y el destino no: es
+    # idempotente y nunca sobreescribe datos.
+    origen, destino = BASE_DIR / viejo, BASE_DIR / nuevo
+    if _vacio(origen) or not _vacio(destino):
+        return
+    if destino.exists():
+        destino.rmdir() if destino.is_dir() else destino.unlink()
+    origen.rename(destino)
+
+
+_renombrar_si_quedo_el_nombre_viejo("db.sqlite3", DB_NAME)
+_renombrar_si_quedo_el_nombre_viejo("media", MEDIA_DIR)
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': BASE_DIR / DB_NAME,
     }
 }
 
@@ -127,15 +171,17 @@ STATICFILES_DIRS = [
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
+# El ajuste se llama EMAIL_BACKEND. Con el nombre equivocado Django caia a
+# su valor por defecto (SMTP contra localhost:25) y las notificaciones
+# fallaban en silencio, tapadas por el try/except de email_notifications.py.
+EMAIL_BACKEND = os.environ.get(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
 DEFAULT_FROM_EMAIL = "BackToYou noreply@backtoyou.local"
 AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "home"
 MEDIA_URL ="/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = BASE_DIR / MEDIA_DIR
